@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"math/rand"
 	"net"
 	"runtime"
 
@@ -136,7 +138,7 @@ func modeToString(mode netlink.MacvlanMode) (string, error) {
 	}
 }
 
-func createMacvlan(conf *NetConf, ifName string, netns ns.NetNS) (*current.Interface, error) {
+func createMacvlan(id string, conf *NetConf, ifName string, netns ns.NetNS) (*current.Interface, error) {
 	macvlan := &current.Interface{}
 
 	mode, err := modeFromString(conf.Mode)
@@ -165,6 +167,20 @@ func createMacvlan(conf *NetConf, ifName string, netns ns.NetNS) (*current.Inter
 		},
 		Mode: mode,
 	}
+
+	h := fnv.New32a()
+	if _, err := fmt.Fprint(h, id); err != nil {
+		return nil, err
+	}
+	var (
+		seed = h.Sum32()
+		buf  = make([]byte, 6)
+	)
+	rand.Seed(int64(seed))
+	rand.Read(buf)
+	buf[0] |= 2
+
+	mv.HardwareAddr = net.HardwareAddr(buf)
 
 	if err := netlink.LinkAdd(mv); err != nil {
 		return nil, fmt.Errorf("failed to create macvlan: %v", err)
@@ -217,7 +233,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer netns.Close()
 
-	macvlanInterface, err := createMacvlan(n, args.IfName, netns)
+	macvlanInterface, err := createMacvlan(args.ContainerID, n, args.IfName, netns)
 	if err != nil {
 		return err
 	}
