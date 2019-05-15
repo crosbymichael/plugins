@@ -64,7 +64,7 @@ func (d *DHCP) Allocate(args *skel.CmdArgs, result *current.Result) error {
 
 	clientID := generateClientID(args.ContainerID, conf.Name, args.IfName)
 	hostNetns := d.hostNetnsPrefix + args.Netns
-	l, err := AcquireLease(clientID, hostNetns, args.IfName)
+	l, err := AcquireLease(clientID, hostNetns, args.IfName, args.ContainerID)
 	if err != nil {
 		return err
 	}

@@ -59,16 +59,18 @@ type DHCPLease struct {
 	stopping      uint32
 	stop          chan struct{}
 	wg            sync.WaitGroup
+	containerID   string
 }
 
 // AcquireLease gets an DHCP lease and then maintains it in the background
 // by periodically renewing it. The acquired lease can be released by
 // calling DHCPLease.Stop()
-func AcquireLease(clientID, netns, ifName string) (*DHCPLease, error) {
+func AcquireLease(clientID, netns, ifName, containerID string) (*DHCPLease, error) {
 	errCh := make(chan error, 1)
 	l := &DHCPLease{
-		clientID: clientID,
-		stop:     make(chan struct{}),
+		clientID:    clientID,
+		stop:        make(chan struct{}),
+		containerID: containerID,
 	}
 
 	log.Printf("%v: acquiring lease", clientID)
@@ -131,6 +133,7 @@ func (l *DHCPLease) acquire() error {
 	opts := make(dhcp4.Options)
 	opts[dhcp4.OptionClientIdentifier] = []byte(l.clientID)
 	opts[dhcp4.OptionParameterRequestList] = []byte{byte(dhcp4.OptionRouter), byte(dhcp4.OptionSubnetMask)}
+	opts[dhcp4.OptionHostName] = []byte(l.containerID)
 
 	pkt, err := backoffRetry(func() (*dhcp4.Packet, error) {
 		ok, ack, err := DhcpRequest(c, opts)
