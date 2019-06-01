@@ -15,11 +15,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"math/rand"
 	"net"
 	"runtime"
 
@@ -168,19 +167,12 @@ func createMacvlan(id string, conf *NetConf, ifName string, netns ns.NetNS) (*cu
 		Mode: mode,
 	}
 
-	h := fnv.New32a()
+	h := sha256.New()
 	if _, err := fmt.Fprint(h, id); err != nil {
 		return nil, err
 	}
-	var (
-		seed = h.Sum32()
-		buf  = make([]byte, 6)
-	)
-	rand.Seed(int64(seed))
-	rand.Read(buf)
-	buf[0] |= 2
-
-	mv.HardwareAddr = net.HardwareAddr(buf)
+	buf := h.Sum(nil)
+	mv.HardwareAddr = net.HardwareAddr(buf[:6])
 
 	if err := netlink.LinkAdd(mv); err != nil {
 		return nil, fmt.Errorf("failed to create macvlan: %v", err)
