@@ -137,6 +137,19 @@ func modeToString(mode netlink.MacvlanMode) (string, error) {
 	}
 }
 
+func macHash(s string) []byte {
+	h := sha256.New()
+	h.Write([]byte(s))
+	return h.Sum(nil)[:6]
+}
+
+func generateMAC(id string) net.HardwareAddr {
+	buf := macHash(id)
+	// set local bit
+	buf[0] = 0 //(buf[0] | 2) & 0xfe
+	return net.HardwareAddr(buf)
+}
+
 func createMacvlan(id string, conf *NetConf, ifName string, netns ns.NetNS) (*current.Interface, error) {
 	macvlan := &current.Interface{}
 
@@ -167,12 +180,7 @@ func createMacvlan(id string, conf *NetConf, ifName string, netns ns.NetNS) (*cu
 		Mode: mode,
 	}
 
-	h := sha256.New()
-	if _, err := fmt.Fprint(h, id); err != nil {
-		return nil, err
-	}
-	buf := h.Sum(nil)
-	mv.HardwareAddr = net.HardwareAddr(buf[:6])
+	mv.HardwareAddr = generateMAC(id)
 
 	if err := netlink.LinkAdd(mv); err != nil {
 		return nil, fmt.Errorf("failed to create macvlan: %v", err)
